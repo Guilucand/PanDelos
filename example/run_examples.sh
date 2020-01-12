@@ -10,6 +10,6 @@ bash download.sh ${s}.list.txt ${s}
 bash ../pandelos.sh ${s}.faa ${s}
 python3 quality.py ${s}.faa ${s}.clus
 echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-exit
+
 done
 
