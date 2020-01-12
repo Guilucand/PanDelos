@@ -3,13 +3,10 @@ package infoasys.cli.pangenes;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.Vector;
-
-import infoasys.core.common.CharArraySequence;
 
 public class PangeneIData {
 

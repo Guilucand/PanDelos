@@ -1,9 +1,6 @@
 package infoasys.cli.pangenes;
 
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,8 +9,6 @@ import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import infoasys.core.common.util.Pair;
 
 public class Pangenes {
 
@@ -63,10 +58,12 @@ public class Pangenes {
 		/*
 		 * Total complexity: |gset|**2 * ((|seq(gi)| + |seq(gj)|)**2 + ...)
 		 * Worst case complexity: |gset|**2 * ((|seq(gi)| + |seq(gj)|)**2 + len(seq(gi)) * (|seq(gi)| + |seq(gj)|))
-		 * New complexity: |gset|**2 * (|seq(gi)| * |seq(gj)| * len(seq(gi)))
+		 * New complexity: |gset|**2 * (|seq(gi)| * |seq(gj)| * len(avg(seq(gi), seq(g2))))
 		 *
 		 * */
-		ExecutorService threadService = Executors.newFixedThreadPool(12);
+
+		int cores = Runtime.getRuntime().availableProcessors();
+		ExecutorService threadService = Executors.newFixedThreadPool(cores);
 
 		for (int g1 = 0; g1 < nofGenomes; g1++) {
 			for (int g2 = g1 + 1; g2 < nofGenomes; g2++) {
@@ -107,16 +104,8 @@ public class Pangenes {
 						float inter_max_perc = 0.0f;
 						float inter_min_perc = 1.0f;
 
-						FileWriter debugtest = null;
-
-						try {
-							debugtest = new FileWriter("dtest.txt");
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-
 						//0-
-						//x0
+						//-0
 						for (int i = 0; i < pairScores.scoresCount; i++) {
 							int row = pairScores.row[i];
 							int column = pairScores.column[i];
@@ -167,7 +156,7 @@ public class Pangenes {
 						System.out.println(pnet.countNodes() + "\t" + pnet.countEdges());
 
 						//-x
-						//x0
+						//x-
 						for (int i = 0; i < pairScores.scoresCount; i++) {
 							if (pairScores.sameGenome[i]) {
 								float score = pairScores.scores[i];
@@ -184,11 +173,6 @@ public class Pangenes {
 									else if (score == pairScores.max_intra_score[row] &&
 											score == pairScores.max_intra_score[column] &&
 											score >= inter_max_score) {
-										try {
-											debugtest.write(firstSeq + " " + secondSeq + " " + score + "\n");
-										} catch (IOException e) {
-											e.printStackTrace();
-										}
 										pnet.addConnection(firstSeq, secondSeq, score);
 									}
 								}
