@@ -35,21 +35,25 @@ public class PangeneNet {
 		
 	}
 	
-	public Map<Integer, Set<Edge> > adjacents;
+	public final Map<Integer, Set<Edge> > adjacents;
 	
 	
 	public PangeneNet(){
-		this.adjacents = new HashMap<Integer, Set<Edge>>();
+		this.adjacents = new HashMap<>();
 	}
 
 	public void addConnection(int src, int dest, double score){
-		if(! this.adjacents.containsKey(src)){
-			Set<Edge> edges = new TreeSet<Edge>(); 
-			edges.add( new Edge(dest, score));
-			this.adjacents.put(src,  edges);
+		if(!this.adjacents.containsKey(src)){
+			Set<Edge> edges = new TreeSet<>();
+			edges.add(new Edge(dest, score));
+			synchronized (this.adjacents) {
+				this.adjacents.put(src, edges);
+			}
 		}
 		else{
-			this.adjacents.get(src).add(new Edge(dest, score));
+			synchronized (this.adjacents) {
+				this.adjacents.get(src).add(new Edge(dest, score));
+			}
 		}
 	}
 	

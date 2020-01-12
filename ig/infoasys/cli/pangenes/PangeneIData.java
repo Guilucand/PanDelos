@@ -19,10 +19,7 @@ public class PangeneIData {
 	
 	public Vector<Integer> sequenceGenome = new Vector<Integer>();
 	public Vector<String> genomeNames = new Vector<String>();
-	
 
-	public PangeneIData(){
-	}
 	
 	public Set<Character> getAlphabet(){
 		Set<Character> alphabet = new TreeSet<Character>();
