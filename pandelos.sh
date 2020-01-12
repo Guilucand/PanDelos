@@ -11,7 +11,7 @@ echo "##########################################################################
 
 
 sdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-sdir=`dirname $sdir`
+sdir=`dirname "$sdir"`
 
 if [ -z "$PANDELOS_PATH"]; then
 	echo "environment variable PANDELOS_PATH not set!"
@@ -64,21 +64,21 @@ clus="${oprefix}.clus"
 
 
 echo "calculating k ..."
-python3 $kk $idb >$tmp
-k=`grep "k =" $tmp | sed s/k\ =\ //g`
+python3 "$kk" "$idb" > "$tmp"
+k=`grep "k =" "$tmp" | sed s/k\ =\ //g`
 echo "k = $k"
 echo "clustering ..."
 date
 #java -server -d64 -Xmn2560M -Xms6144M -Xmx60144M 
-java -cp ${sdir}/ext/commons-io-2.6.jar -cp $ig infoasys.cli.pangenes.Pangenes $idb $k $dnet >$tmp
+java -Djava.library.path="${sdir}/ig/native/build" -cp "${sdir}/ext/commons-io-2.6.jar" -cp "$ig" infoasys.cli.pangenes.Pangenes "$idb" $k "$dnet" > "$tmp"
 echo "de-clustering ..."
 date
-python3 $nc $idb  $dnet >>$tmp
+python3 "$nc" "$idb"  "$dnet" >> "$tmp"
 echo "writing gene gene families in $clus ..."
 date
-grep "F{ " $tmp | sed s/F{\ //g | sed s/}//g | sed s/\ \;//g | sort | uniq >$clus
+grep "F{ " "$tmp" | sed s/F{\ //g | sed s/}//g | sed s/\ \;//g | sort | uniq > "$clus"
 date
-rm $tmp
+rm "$tmp"
 
 
 echo "################################################################################"
