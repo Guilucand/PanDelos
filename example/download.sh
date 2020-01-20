@@ -22,7 +22,8 @@ id=`echo $line | sed s/^.*\_NC\_/NC\_/g`
 id=`echo $id | sed s/^.*\_NZ\_/NZ\_/g`
 echo "efetch for $id"
 if [ ! -f "${prefix}/${id}.gbk" ]; then
-	efetch -db nuccore -id $id -format gbwithparts > ${prefix}/${id}.gbk;
+	efetch -db nuccore -id $id -format gbwithparts > ${prefix}/${id}.gbk &
 fi
+wait
 done < "$ilist"
 python3 gbk2ig.py ${prefix}/ ${prefix}.faa

@@ -31,10 +31,10 @@ if [ ! -f "$kk" ]; then
 	echo "ERROR: file calculate_k.py not found in $sdir !"
 	exit
 fi
-if [ ! -f "$ig" ]; then
-	echo "ERROR: file ig.jar not found in $sdir !"
-	exit
-fi
+#if [ ! -f "$ig" ]; then
+#	echo "ERROR: file ig.jar not found in $sdir !"
+#	exit
+#fi
 if [ ! -f "$nc" ]; then
 	echo "ERROR: file netclu_ng.py not found in $sdir !"
 	exit
@@ -65,7 +65,7 @@ clus="${oprefix}.clus"
 
 echo "calculating k ..."
 python3 "$kk" "$idb" > "$tmp"
-k=`grep "k =" "$tmp" | sed s/k\ =\ //g`
+k=`grep -E "^k =" "$tmp" | sed s/k\ =\ //g`
 echo "k = $k"
 echo "clustering ..."
 date

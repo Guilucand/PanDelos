@@ -9,6 +9,7 @@ import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Pangenes {
 
@@ -47,141 +48,113 @@ public class Pangenes {
 			return;
 		}
 
+		AtomicInteger doneGenomes = new AtomicInteger();
+
 		long startt = System.currentTimeMillis();
+		Map<Integer, Vector<Integer>> genomeSets = pid.getGenomeSets();
+
 		PangeneNative nativ = new PangeneNative(k, pid);
 
 
 		int nofGenomes = pid.genomeNames.size();
-		Map<Integer, Vector<Integer>> genomeSets = pid.getGenomeSets();
 		PangeneNet pnet = new PangeneNet();
 
 		/*
 		 * Total complexity: |gset|**2 * ((|seq(gi)| + |seq(gj)|)**2 + ...)
 		 * Worst case complexity: |gset|**2 * ((|seq(gi)| + |seq(gj)|)**2 + len(seq(gi)) * (|seq(gi)| + |seq(gj)|))
 		 * New complexity: |gset|**2 * (|seq(gi)| * |seq(gj)| * len(avg(seq(gi), seq(g2))))
+		 * New complexity2: (|seq| * |seq|) + |seq| * avg(kmers_repeats)))
 		 *
 		 * */
 
 		int cores = Runtime.getRuntime().availableProcessors();
 		ExecutorService threadService = Executors.newFixedThreadPool(cores);
 
-		for (int g1 = 0; g1 < nofGenomes; g1++) {
-			for (int g2 = g1 + 1; g2 < nofGenomes; g2++) {
+		int sequencesCount = pid.sequences.size();
 
-				final int g1f = g1;
-				final int g2f = g2;
+		long memUsed = Runtime.getRuntime().totalMemory();
+		System.out.println("Memory used: " + (double)memUsed / (1024 * 1024) + "MB");
 
-				threadService.submit(() -> {
-					System.out.println("##\t" + g1f + "\t" + g2f);
+		for (int g = 0; g < nofGenomes; g++) {
 
-					int[] allowedFirst = genomeSets.get(g1f).stream().mapToInt(i -> i).toArray();
-					int[] allowedSecond = genomeSets.get(g2f).stream().mapToInt(i -> i).toArray();
+			final int finalG = g;
 
-					int sequencesCount = allowedFirst.length + allowedSecond.length;
+			threadService.submit(() -> {
+				System.out.println("Working on genome " + finalG + "/" + nofGenomes);
+				final Scores scoresPart = nativ.generateScoresPart(finalG);
+				System.out.println("Preprocessed genome " + finalG + "/" + nofGenomes);
 
-					PangeneNative.PairInfo pairInfo = nativ.generatePairInfo(allowedFirst, allowedSecond);
-					PairScores pairScores = pairInfo.computePairScoresAndFree();
+				final float[] inter_thr_sum = new float[nofGenomes];
+				final float[] inter_thr_count = new float[nofGenomes];
+				final float[] inter_max_score = new float[nofGenomes];
+				final float[] inter_min_score = new float[nofGenomes];
+				Arrays.fill(inter_min_score, 1.0f);
 
-					if (g1f == g2f) {
-						/* connect identical sequences of same genome */
-						for (int i = 0; i < pairScores.scoresCount; i++) {
-							if ((pairScores.row[i] < pairScores.column[i]) && pairScores.scores[i] == 1.0) {
-								pnet.addConnection(pairScores.firstSeqIndex[i], pairScores.secondSeqIndex[i], pairScores.scores[i]);
+				final float[] inter_max_perc = new float[nofGenomes];
+				final float[] inter_min_perc = new float[nofGenomes];
+				final boolean[] engagged = new boolean[sequencesCount];
+
+				Arrays.fill(inter_max_perc, 1.0f);
+
+				float min_inter_max_score = 1.0f;
+
+
+				for (int i = 0; i < scoresPart.scoresCount; i++) {
+					if (scoresPart.first_seq_genome[i] != scoresPart.second_seq_genome[i]) {
+						if (scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
+								scoresPart.scores[i] == scoresPart.max_genome_score_col[scoresPart.column[i]]) {
+
+							pnet.addConnection(scoresPart.row[i], scoresPart.column[i], scoresPart.scores[i]);
+							pnet.addConnection(scoresPart.column[i], scoresPart.row[i], scoresPart.scores[i]);
+							engagged[scoresPart.row[i]] = true;
+
+							int fg = scoresPart.first_seq_genome[i];
+							int sg = scoresPart.second_seq_genome[i];
+							float score = scoresPart.scores[i];
+							float perc = scoresPart.percs[i];
+							float otherPerc = scoresPart.tr_percs[i];
+
+							inter_thr_sum[sg] += 2 * scoresPart.scores[i];
+							inter_thr_count[sg] += 2;
+							if (score < 1.0 && score > inter_max_score[sg]) {
+								inter_max_score[sg] = score;
 							}
+
+							if (score > 0.0 && score < inter_min_score[sg]) {
+								inter_min_score[sg] = score;
+							}
+
+							inter_max_perc[sg] = Math.max(inter_max_perc[sg], Math.max(perc, otherPerc));
+							inter_min_perc[sg] = Math.min(inter_min_perc[sg], Math.min(perc, otherPerc));
 						}
 					}
-					else {
-						boolean[] engagged = new boolean[sequencesCount];
-						Arrays.fill(engagged, false);
+				}
 
-						/* get inter bbh */
-						/* also, calcolate threshold for inter non-bbh as the average non-null and non-bbh scores*/
-						float inter_thr_sum = 0.0f;
-						float inter_thr_count = 0.0f;
-						float inter_max_score = 0.0f;
-						float inter_min_score = 1.0f;
+//					float inter_thr = inter_thr_sum / inter_thr_count;
+//
+//					System.out.println("score\t" + inter_thr + "\t" + inter_min_score + "\t" + inter_max_score);
+//					System.out.println("perc\t" + inter_min_perc + "\t" + inter_max_perc);
+//					System.out.println(pnet.countNodes() + "\t" + pnet.countEdges());
 
-						float inter_max_perc = 0.0f;
-						float inter_min_perc = 1.0f;
 
-						//0-
-						//-0
-						for (int i = 0; i < pairScores.scoresCount; i++) {
-							int row = pairScores.row[i];
-							int column = pairScores.column[i];
-							float score = pairScores.scores[i];
-							int firstSeqIndex = pairScores.firstSeqIndex[i];
-							int secondSeqIndex = pairScores.secondSeqIndex[i];
+				for (float max_iscore : inter_max_score) {
+					min_inter_max_score = Math.min(min_inter_max_score, max_iscore);
+				}
 
-							float perc = pairScores.percs[i];
-							float otherPerc = pairScores.tr_percs[i];
-
-							if (!pairScores.sameGenome[i] && pairScores.max_inter_score[row] > 0.0f && pairScores.max_inter_score[column] > 0.0f) {
-
-//								OTHER SCORE IS ALWAYS EQUAL TO CURRENT SCORE!!
-//								float otherScore = (otherIndex >= 0) ? pairScores.scores[otherIndex] : 0.0f;
-								float otherScore = score;
-
-								if ((score == pairScores.max_inter_score[row] && otherScore == pairScores.max_inter_score[column])) {
-									pnet.addConnection(firstSeqIndex, secondSeqIndex, score);
-									pnet.addConnection(secondSeqIndex, firstSeqIndex, otherScore);
-									engagged[row] = true;
-									engagged[column] = true;
-
-									inter_thr_sum += score + otherScore;
-									inter_thr_count += 2;
-									if (score < 1.0 && score > inter_max_score) {
-										inter_max_score = score;
-									} else if (otherScore < 1.0 && otherScore > inter_max_score) {
-										inter_max_score = otherScore;
-									}
-
-									if (score > 0.0 && score < inter_min_score) {
-										inter_min_score = score;
-									} else if (otherScore > 0.0 && otherScore < inter_min_score) {
-										inter_min_score = otherScore;
-									}
-
-									inter_max_perc = Math.max(inter_max_perc, Math.max(perc, otherPerc));
-									inter_min_perc = Math.min(inter_min_perc, Math.min(perc, otherPerc));
-								}
-							}
-						}
-
-						/* calcolate threshold for inter non-bbh */
-						float inter_thr = inter_thr_sum / inter_thr_count;
-
-						System.out.println("score\t" + inter_thr + "\t" + inter_min_score + "\t" + inter_max_score);
-						System.out.println("perc\t" + inter_min_perc + "\t" + inter_max_perc);
-						System.out.println(pnet.countNodes() + "\t" + pnet.countEdges());
-
-						//-x
-						//x-
-						for (int i = 0; i < pairScores.scoresCount; i++) {
-							if (pairScores.sameGenome[i]) {
-								float score = pairScores.scores[i];
-								int row = pairScores.row[i];
-								int column = pairScores.column[i];
-								int firstSeq = pairScores.firstSeqIndex[i];
-								int secondSeq = pairScores.secondSeqIndex[i];
-								if (engagged[row]) {
-									/* get identical paralogs */
-									if (score == 1.0) {
-										pnet.addConnection(firstSeq, secondSeq, score);
-									}
-									/* get paralog / intra bbh, filtered by inter max scores */
-									else if (score == pairScores.max_intra_score[row] &&
-											score == pairScores.max_intra_score[column] &&
-											score >= inter_max_score) {
-										pnet.addConnection(firstSeq, secondSeq, score);
-									}
-								}
-							}
-						}
-						System.out.println(pnet.countNodes() + "\t" + pnet.countEdges());
+				/* get inter bbh */
+				/* also, calcolate threshold for inter non-bbh as the average non-null and non-bbh scores*/
+				for (int i = 0; i < scoresPart.scoresCount; i++) {
+					 if (engagged[scoresPart.row[i]] && scoresPart.first_seq_genome[i] == scoresPart.second_seq_genome[i] &&
+							 (scoresPart.scores[i] == 1.0f ||
+							(scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
+									scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.column[i]]][scoresPart.second_seq_genome[i]] &&
+									scoresPart.scores[i] >= min_inter_max_score))) {
+						pnet.addConnection(scoresPart.row[i], scoresPart.column[i], scoresPart.scores[i]);
 					}
-				});
-			}
+				}
+				doneGenomes.getAndIncrement();
+				System.out.println("Done genome " + doneGenomes.get() + "/" + nofGenomes + " => " + scoresPart.scoresCount);
+			});
 		}
 
 		boolean terminated = false;
@@ -217,7 +190,6 @@ public class Pangenes {
 		for (Map.Entry<Integer, Integer> en : cocodistr.entrySet()) {
 			System.out.println(en.getKey() + "\t" + en.getValue());
 		}
-
 
 		System.out.println("----------");
 		System.out.println("writing into " + netofile + "");
