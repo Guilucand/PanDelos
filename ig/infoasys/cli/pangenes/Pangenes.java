@@ -69,7 +69,7 @@ public class Pangenes {
 		 *
 		 * */
 
-		int cores = 5;//Runtime.getRuntime().availableProcessors();
+		int cores = Runtime.getRuntime().availableProcessors();
 		ExecutorService threadService = Executors.newFixedThreadPool(cores);
 
 		int sequencesCount = pid.sequences.size();
