@@ -7,13 +7,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*
- * Class:     infoasys_cli_pangenes_PangeneNative
- * Method:    initialize
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_initialize
-        (JNIEnv *, jobject, jint);
 
 /*
  * Class:     infoasys_cli_pangenes_PangeneNative
@@ -21,7 +14,7 @@ JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_initialize
  * Signature: (Linfoasys/cli/pangenes/PangeneIData;)V
  */
 JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences
-        (JNIEnv *, jobject, jobject);
+        (JNIEnv *, jobject, jobject, jint);
 
 /*
  * Class:     infoasys_cli_pangenes_PangeneNative

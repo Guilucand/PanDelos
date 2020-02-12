@@ -11,16 +11,11 @@
 
 using namespace std;
 
-template <class T>
-using min_heap = priority_queue<T, vector<T>, greater<T>>;
-
 typedef uint64_t rank_t;
 typedef uint32_t seq_id_t;
 typedef uint32_t gen_id_t;
 
 #define RABIN_MODULO ((uint64_t)36028797018963913ULL)
-
-int tmp_kvalue = 1;
 
 struct kmer_rank {
     rank_t rank;
@@ -49,84 +44,89 @@ struct kmers_range {
 };
 
 struct pair_info {
-    unsigned long rank_counters[256];
-    unsigned char rank_values[256];
-    unsigned char rank_base;
-    unsigned char rank_byte_order;
-    unsigned int kvalue;
-    bool hash_fallback;
-    rank_t max_rank = 1;
+    unsigned long rank_counters[256] = {0};
+    unsigned char rank_values[256] = {0};
+    unsigned char rank_base = 0;
+    unsigned char rank_byte_order = 0;
+    unsigned int kvalue = 0;
+    bool hash_fallback = false;
+    rank_t last_multiplier = 1;
 
-    unsigned int sequences_count;
-    unsigned int genomes_count;
+    unsigned int sequences_count = 0;
+    unsigned int genomes_count = 0;
     vector<kmer_rank> kmers;
-    vector<unsigned int> seq_lengths;
+    vector<unsigned int> kseq_lengths;
     vector<gen_id_t> seq_gen_mapping;
     vector<vector<seq_id_t>> genome_sequences;
     vector<vector<kmers_range>> kmers_ranges;
     vector<pair<pair<unsigned long, unsigned long>, float>> computation_costs;
-} info;
+} global_info;
 
-rank_t update_rank(rank_t current, jchar next, jchar pop) {
+inline rank_t update_rank(pair_info const& info, rank_t current, jchar next, jchar pop) {
     rank_t result = current * info.rank_base + info.rank_values[next];
-    result = result - pop * info.max_rank;
+    result = result - info.rank_values[pop] * info.last_multiplier;
     return result;
 }
 
-rank_t update_rank_hash(rank_t current, jchar next, jchar pop) {
+inline rank_t update_rank_hash(pair_info const& info, rank_t current, jchar next, jchar pop) {
     rank_t result = (current * info.rank_base + info.rank_values[next]) % RABIN_MODULO;
-    result = ((result + RABIN_MODULO) - ((pop * info.max_rank) % RABIN_MODULO)) % RABIN_MODULO;
+    result = ((result + RABIN_MODULO) - ((info.rank_values[pop] * info.last_multiplier) % RABIN_MODULO)) % RABIN_MODULO;
     return result;
 }
 
-void rank_init(int kvalue) {
+void rank_init(pair_info &info, int kvalue) {
     info.kvalue = kvalue;
     int rank = 0;
     for (int i = 0; i < 256; i++) {
         if (info.rank_counters[i] > 0) info.rank_values[i] = rank++;
     }
     info.rank_base = rank;
-    info.max_rank = 1;
+    info.last_multiplier = 1;
 
     bool has_overflow = false;
 
-    int tmp_kvalue = kvalue - 1;
+    int tmp_kvalue = kvalue;
     while (tmp_kvalue--) {
-        rank_t ovflw_test = info.max_rank;
-        info.max_rank *= info.rank_base;
+        rank_t ovflw_test = info.last_multiplier;
+        info.last_multiplier *= info.rank_base;
         if (has_overflow) {
-            info.max_rank %= RABIN_MODULO;
+            info.last_multiplier %= RABIN_MODULO;
         }
-        else if (ovflw_test > info.max_rank) {
+        else if (ovflw_test > info.last_multiplier) {
             has_overflow = true;
             info.hash_fallback = true;
-            info.max_rank = ((ovflw_test % RABIN_MODULO) * info.rank_base) % RABIN_MODULO;
+            info.last_multiplier = ((ovflw_test % RABIN_MODULO) * info.rank_base) % RABIN_MODULO;
             cout << "Hashing fallback!" << endl;
         }
     }
 
 
-    auto rank_tmp = info.max_rank;
-    info.rank_byte_order = 0;
-    while (rank_tmp) {
-        info.rank_byte_order++;
-        rank_tmp /= 256;
+    if (!has_overflow) {
+        auto rank_tmp = info.last_multiplier;
+        info.rank_byte_order = 0;
+        while (rank_tmp) {
+            info.rank_byte_order++;
+            rank_tmp /= 256;
+        }
+    }
+    else {
+        info.rank_byte_order = 7;
     }
 }
 
 template <class RF>
-vector<rank_t> do_ranking(const jchar *chars, jsize len, RF ranking_function) {
+vector<rank_t> do_ranking(pair_info const& info, const jchar *chars, jsize len, RF ranking_function) {
 
     vector<rank_t> result(len - info.kvalue + 1);
     rank_t rank = 0;
 
     for (jsize i = 0; i < info.kvalue; i++) {
-        rank = ranking_function(rank, chars[i], 0);
+        rank = ranking_function(info, rank, chars[i], 0);
     }
     result[0] = rank;
 
     for (jsize i = info.kvalue; i < len; i++) {
-        rank = ranking_function(rank, chars[i], chars[i - info.kvalue]);
+        rank = ranking_function(info, rank, chars[i], chars[i - info.kvalue]);
         result[i - info.kvalue + 1] = rank;
     }
     return result;
@@ -165,11 +165,10 @@ void counting_sort_ext(vector<T> &vec, unsigned int byte_ref, F mapping) {
     }
 }
 
-void Java_infoasys_cli_pangenes_PangeneNative_initialize(JNIEnv *env, jobject obj, jint kvalue) {
-    tmp_kvalue = kvalue;
-}
+void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, jobject obj, jobject data, jint kvalue) {
 
-void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, jobject obj, jobject data) {
+    pair_info &info = global_info;
+
     jclass dataClass = env->GetObjectClass(data);
     jfieldID seqId = env->GetFieldID(dataClass, "sequences", "Ljava/util/Vector;");
     jfieldID seqGen = env->GetFieldID(dataClass, "sequenceGenome", "Ljava/util/Vector;");
@@ -181,18 +180,18 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
     jmethodID elMethod = env->GetMethodID(vecClass, "get", "(I)Ljava/lang/Object;");
     jmethodID szMethod = env->GetMethodID(vecClass, "size", "()I");
 
-    seq_id_t seq_number = env->CallIntMethod(objSeq, szMethod);
-    info.sequences_count = seq_number;
-    info.seq_gen_mapping.resize(seq_number);
-    info.seq_lengths.resize(seq_number);
+    seq_id_t seq_count = env->CallIntMethod(objSeq, szMethod);
+    info.sequences_count = seq_count;
+    info.seq_gen_mapping.resize(seq_count);
+    info.kseq_lengths.resize(seq_count);
 
 
     // Seq number is greater than genomes count
-    info.genome_sequences.resize(seq_number);
+    info.genome_sequences.resize(seq_count);
     unsigned int genomes_count = 0;
 
     memset(info.rank_counters, 0, 256 * sizeof(info.rank_counters[0]));
-    for (seq_id_t i = 0; i < seq_number; i++) {
+    for (seq_id_t i = 0; i < seq_count; i++) {
         auto str = (jstring) env->CallObjectMethod(objSeq, elMethod, i);
         jboolean iscopy = false;
         jsize len = env->GetStringLength(str);
@@ -205,11 +204,11 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
         env->ReleaseStringChars(str, seq);
     }
 
-    rank_init(tmp_kvalue);
+    rank_init(info, kvalue);
 
     auto &kmers = info.kmers;
 
-    for (seq_id_t i = 0; i < seq_number; i++) {
+    for (seq_id_t i = 0; i < seq_count; i++) {
         auto str = (jstring) env->CallObjectMethod(objSeq, elMethod, i);
         auto gen_id_obj = (jobject)env->CallObjectMethod(objGen, elMethod, i);
         jclass intCls = env->GetObjectClass(gen_id_obj);
@@ -225,8 +224,9 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
         jsize len = env->GetStringLength(str);
         const jchar *seq = env->GetStringChars(str, &iscopy);
 
-        info.seq_lengths[i] = len;
-        for (auto kmer : do_ranking(seq, len, info.hash_fallback ? update_rank_hash : update_rank)) {
+        info.kseq_lengths[i] = len - info.kvalue + 1;
+
+        for (auto kmer : do_ranking(info, seq, len, info.hash_fallback ? update_rank_hash : update_rank)) {
             kmers.emplace_back(kmer, i, 0);
         }
 
@@ -236,9 +236,10 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
     info.genomes_count = genomes_count;
     info.genome_sequences.resize(genomes_count);
 
-    // FIXME: Assumed less than 65536 sequences
-    for (int b = 0; b < 2; b++) {
+    seq_id_t max_sortval = 1;
+    for (int b = 0; max_sortval >= seq_count; b++) {
         counting_sort_ext(kmers, b, [](auto k) { return k.seq; });
+        max_sortval *= 256;
     }
 
     for (int b = 0; b < info.rank_byte_order; b++) {
@@ -289,15 +290,16 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
             current_rank = kmers[i].rank;
         }
     }
+
     cout << "Total cost: " << sum << " / " << sumc << endl;
     cout << "Average: " << (float)sqrt((float)sum / tot) << endl;
     tot = 0;
     long sum2 = 0;
     for (int i = 0; i < info.computation_costs.size(); i++) {
-        tot += info.seq_lengths[i];
+        tot += info.kseq_lengths[i];
         sum2 += info.computation_costs[i].first.first;
-        info.computation_costs[i].first.second = info.seq_lengths[i];
-        info.computation_costs[i].second = ((float)info.computation_costs[i].first.first / info.seq_lengths[i]);
+        info.computation_costs[i].first.second = info.kseq_lengths[i];
+        info.computation_costs[i].second = ((float)info.computation_costs[i].first.first / info.kseq_lengths[i]);
 //        cout << info.computation_costs[i].first.first << " => " << info.computation_costs[i].second << endl;
     }
     cout << endl;
@@ -305,7 +307,7 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
 //    exit(0);
 }
 
-static inline unsigned int get_genome_index(seq_id_t id) {
+static inline unsigned int get_genome_index(pair_info const& info, seq_id_t id) {
     return info.seq_gen_mapping[id];
 }
 
@@ -337,12 +339,11 @@ struct scores {
     vector<float> col_max_scores;
 };
 
-static unsigned int compute_scores_index(unsigned int row, unsigned int col) {
+static unsigned int compute_scores_index(pair_info const& info, unsigned int row, unsigned int col) {
     return row * info.genomes_count + info.seq_gen_mapping[col];
 }
 
-
-static scores computeScores(vector<seq_id_t> sequences) {
+static scores computeScores(pair_info const& info, vector<seq_id_t> const& sequences) {
 
     // Non-zero cells list
     vector<mat_cell> nonzero_cells;
@@ -357,6 +358,9 @@ static scores computeScores(vector<seq_id_t> sequences) {
     vector<int> row_intersection_size = vector<int>(info.sequences_count, 0);
     vector<int> row_connection_perc_cnt = vector<int>(info.sequences_count, 0);
     vector<int> row_transposed_perc_cnt = vector<int>(info.sequences_count, 0);
+    vector<unsigned int> reset_colors = vector<unsigned int>(info.sequences_count, 0);
+    vector<int> colored_cells = vector<int>();
+    colored_cells.reserve(info.sequences_count);
 
     vector<seq_id_t > flat_map = vector<seq_id_t >(info.sequences_count, INT32_MAX);
     int flat_idx = 0;
@@ -364,18 +368,34 @@ static scores computeScores(vector<seq_id_t> sequences) {
         flat_map[row] = flat_idx++;
     }
 
+    // Color cells to avoid zero-initialization
+    unsigned int color = 0;
 
     for (seq_id_t row : sequences) {
 
-        /* Reset all row data */
-        memset(row_intersection_size.data(), 0, row_intersection_size.size() * sizeof(int));
-        memset(row_connection_perc_cnt.data(), 0, row_connection_perc_cnt.size() * sizeof(int));
-        memset(row_transposed_perc_cnt.data(), 0, row_transposed_perc_cnt.size() * sizeof(int));
+        // Update color
+        color++;
+        colored_cells.clear();
+
+//        /* Reset all row data [this step was quadratic, now optimized with colors]*/
+//        memset(row_intersection_size.data(), 0, row_intersection_size.size() * sizeof(int));
+//        memset(row_connection_perc_cnt.data(), 0, row_connection_perc_cnt.size() * sizeof(int));
+//        memset(row_transposed_perc_cnt.data(), 0, row_transposed_perc_cnt.size() * sizeof(int));
 
         for (auto &range : info.kmers_ranges[row]) {
             auto it = range.start;
             unsigned int my_cnt = range.current->count;
             while (it < range.end) {
+
+                // Reinitialize the cell if color is different
+                if (reset_colors[it->seq] != color) {
+                    reset_colors[it->seq] = color;
+                    colored_cells.push_back(it->seq);
+                    row_intersection_size[it->seq] = 0;
+                    row_connection_perc_cnt[it->seq] = 0;
+                    row_transposed_perc_cnt[it->seq] = 0;
+                }
+
                 row_intersection_size[it->seq] += min(it->count, my_cnt);
                 row_connection_perc_cnt[it->seq] += my_cnt;
                 row_transposed_perc_cnt[it->seq] += it->count;
@@ -392,9 +412,9 @@ static scores computeScores(vector<seq_id_t> sequences) {
          * Faster way to compute maximums in-place,
          * with the formula |union(A, B)| = |A| + |B| - |intersection(A, B)|
          */
-        for (unsigned int col_index = 0; col_index < info.sequences_count; col_index++) {
-            int my_kcnt = info.seq_lengths[row];
-            int other_kcnt = info.seq_lengths[col_index];
+        for (unsigned int col_index : colored_cells) {
+            int my_kcnt = info.kseq_lengths[row];
+            int other_kcnt = info.kseq_lengths[col_index];
             int union_size = my_kcnt + other_kcnt - row_intersection_size[col_index];
             float perc = (float) row_connection_perc_cnt[col_index] / (float) my_kcnt;
             float tr_perc = (float) row_transposed_perc_cnt[col_index] / (float) other_kcnt;
@@ -412,7 +432,7 @@ static scores computeScores(vector<seq_id_t> sequences) {
                         .x = row,
                         .y = col_index
                 });
-                jfloat &current_max_score = max_scores[compute_scores_index(flat_map[row], col_index)];
+                jfloat &current_max_score = max_scores[compute_scores_index(info, flat_map[row], col_index)];
                 current_max_score = max(current_max_score, score);
                 col_max_scores[col_index] = max(col_max_scores[col_index], score);
             }
@@ -430,23 +450,23 @@ static scores computeScores(vector<seq_id_t> sequences) {
 
 void Java_infoasys_cli_pangenes_PangeneNative_computeScores(JNIEnv *env, jobject obj, jint genome_id, jobject out_scores) {
 
+    pair_info const& info = global_info;
+
     unsigned int rows_count = info.genome_sequences[genome_id].size();
 
     cout << "Genome " << genome_id << " cost = " << std::accumulate(
             info.genome_sequences[genome_id].begin(),
             info.genome_sequences[genome_id].end(),
-            0UL, [](auto a, auto b) { return a + info.computation_costs[b].first.first; }) << endl;
+            0UL, [&info](auto a, auto b) { return a + info.computation_costs[b].first.first; }) << endl;
 
-    scores current_scores = computeScores(info.genome_sequences[genome_id]);
+    scores current_scores = computeScores(info, info.genome_sequences[genome_id]);
 
     jclass scores_out_cl = env->GetObjectClass(out_scores);
-
 
     env->SetIntField(out_scores, env->GetFieldID(scores_out_cl, "scoresCount", "I"), current_scores.non_zero.size());
     env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "scoresMaxMappings", "[I"),
             create_jni_int_array(env, (jint*)current_scores.flat_map.data(), current_scores.flat_map.size()));
     assert(sizeof(jint) == sizeof(seq_id_t));
-
 
     unsigned int cells_count = current_scores.non_zero.size();
 
@@ -470,10 +490,10 @@ void Java_infoasys_cli_pangenes_PangeneNative_computeScores(JNIEnv *env, jobject
     jintArray cells_column_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
 
 
-    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(current_scores.non_zero[i].x); }
+    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(info, current_scores.non_zero[i].x); }
     jintArray first_genome_index_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
 
-    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(current_scores.non_zero[i].y); }
+    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(info, current_scores.non_zero[i].y); }
     jintArray second_genome_index_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
 
     jobjectArray max_scores_arr = env->NewObjectArray(rows_count, env->FindClass("[F"),
@@ -490,7 +510,6 @@ void Java_infoasys_cli_pangenes_PangeneNative_computeScores(JNIEnv *env, jobject
                                                           row * info.genomes_count,
                                                           info.genomes_count));
     }
-
 
     env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "scores", "[F"), cells_scores_arr);
     env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "percs", "[F"), cells_percs_arr);

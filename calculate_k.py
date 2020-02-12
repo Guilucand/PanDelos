@@ -18,6 +18,8 @@ print("total length ", total_length)
 print("alphabet", alphabet)
 print("LG ", math.log(total_length, len(alphabet)))
 
+print(alphabet)
+
 k = 0
 size = sum(alphabet.values())
 for count in alphabet.values():

@@ -13,120 +13,107 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 public class PangeneNet {
-	
-	public static class Edge implements Comparable<Edge>{
+
+	public static class Edge implements Comparable<Edge> {
 		public int node;
 		public double score;
-		public Edge(int node, double score){
+
+		public Edge(int node, double score) {
 			this.node = node;
 			this.score = score;
 		}
+
 		@Override
 		public int compareTo(Edge o) {
 			return this.node - o.node;
 		}
+
 		@Override
-		public int hashCode(){
+		public int hashCode() {
 			return this.node;
 		}
-		
+
 	}
-	
-	public final Map<Integer, Set<Edge> > adjacents;
-	
-	
-	public PangeneNet(){
+
+	public final Map<Integer, Set<Edge>> adjacents;
+
+	public PangeneNet() {
 		this.adjacents = new HashMap<>();
 	}
 
-	public void addConnection(int src, int dest, double score){
-		if(!this.adjacents.containsKey(src)){
+	public synchronized void addConnection(int src, int dest, double score) {
+		if (!this.adjacents.containsKey(src)) {
 			Set<Edge> edges = new TreeSet<>();
 			edges.add(new Edge(dest, score));
-			synchronized (this.adjacents) {
-				this.adjacents.put(src, edges);
-			}
-		}
-		else{
-			synchronized (this.adjacents) {
-				this.adjacents.get(src).add(new Edge(dest, score));
-			}
+			this.adjacents.put(src, edges);
+		} else {
+			this.adjacents.get(src).add(new Edge(dest, score));
 		}
 	}
-	
-	/*public void addNode(int n){
-		if(! this.adjacents.containsKey(n)){
-			Set<Edge> edges = new TreeSet<Edge>(); 
-			this.adjacents.put(n,  edges);
-		}
-	}*/
-	
-	
-	public Set<Integer> getNodeList(){
-		Set<Integer> nodes = new HashSet<Integer>();
-		for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
+
+	public synchronized Set<Integer> getNodeList() {
+		Set<Integer> nodes = new HashSet<>();
+		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
 			nodes.add(adjs_e.getKey());
-			for(Edge i : adjs_e.getValue())
+			for (Edge i : adjs_e.getValue())
 				nodes.add(i.node);
 		}
 		return nodes;
 	}
-	
-	
-	public long countNodes(){
+
+	public synchronized long countNodes() {
 		return this.getNodeList().size();
 	}
-	public long countEdges(){
+
+	public synchronized long countEdges() {
 		long count = 0;
-		for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-			count +=  adjs_e.getValue().size();
+		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+			count += adjs_e.getValue().size();
 		}
 		return count;
 	}
-	
-	
-	public PangeneNet getUnirected(){
+
+	public synchronized PangeneNet getUnirected() {
 		PangeneNet pnet = new PangeneNet();
-		
-		for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-			for(Edge i : adjs_e.getValue()){
+
+		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+			for (Edge i : adjs_e.getValue()) {
 				pnet.addConnection(adjs_e.getKey(), i.node, i.score);
-				pnet.addConnection(i.node , adjs_e.getKey(), i.score);
+				pnet.addConnection(i.node, adjs_e.getKey(), i.score);
 			}
 		}
-		
+
 		return pnet;
 	}
-	
-	
-	public List<Set<Integer>> undirectedConnectedComponets(){
+
+	public synchronized List<Set<Integer>> undirectedConnectedComponents() {
 		PangeneNet pnet = this.getUnirected();
-		return pnet.connectedComponets();
+		return pnet.connectedComponents();
 	}
-	
-	public List<Set<Integer>> connectedComponets(){
-		List<Set<Integer>> coco = new LinkedList<Set<Integer>>();
-		
+
+	public synchronized List<Set<Integer>> connectedComponents() {
+		List<Set<Integer>> coco = new LinkedList<>();
+
 		Set<Integer> nodes = this.getNodeList();
-		HashMap<Integer,Boolean> visited = new HashMap<Integer,Boolean>();
-		for(Integer n : nodes){
-			visited.put(n,  false);
+		HashMap<Integer, Boolean> visited = new HashMap<>();
+		for (Integer n : nodes) {
+			visited.put(n, false);
 		}
-		
-		for(Integer root : nodes){
-			if(! visited.get(root) ){
-				List<Integer> co = new LinkedList<Integer>();
+
+		for (Integer root : nodes) {
+			if (!visited.get(root)) {
+				List<Integer> co = new LinkedList<>();
 				co.add(root);
 				visited.put(root, true);
-				
-				Set<Integer> coconodes= new HashSet<Integer>();
+
+				Set<Integer> coconodes = new HashSet<>();
 				coconodes.add(root);
-				
-				for(int i=0; i<co.size(); i++){
-					 visited.put(co.get(i), true);
-					if(this.adjacents.containsKey( co.get(i) )){
-						for(Edge ed : this.adjacents.get( co.get(i) )){
-							if(!coconodes.contains(ed.node)){
+
+				for (int i = 0; i < co.size(); i++) {
+					visited.put(co.get(i), true);
+					if (this.adjacents.containsKey(co.get(i))) {
+						for (Edge ed : this.adjacents.get(co.get(i))) {
+							if (!coconodes.contains(ed.node)) {
 								co.add(ed.node);
 								coconodes.add(ed.node);
 							}
@@ -136,61 +123,58 @@ public class PangeneNet {
 						}
 					}
 				}
-				
-				coco.add(new HashSet<Integer>(co));
+
+				coco.add(new HashSet<>(co));
 			}
 		}
-		
+
 		return coco;
 	}
-	
-	
-	void printDegreeDistribution(){
-		Map<Integer,Integer> distr = new TreeMap<Integer,Integer>();
-		for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-			distr.put( adjs_e.getValue().size(),  distr.getOrDefault(adjs_e.getValue().size(), 0) + 1 );
+
+	synchronized void printDegreeDistribution() {
+		Map<Integer, Integer> distr = new TreeMap<>();
+		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+			distr.put(adjs_e.getValue().size(), distr.getOrDefault(adjs_e.getValue().size(), 0) + 1);
 		}
-		for(Map.Entry<Integer,Integer> en : distr.entrySet()){
-			System.out.println(en.getKey()+"\t"+en.getValue());
+		for (Map.Entry<Integer, Integer> en : distr.entrySet()) {
+			System.out.println(en.getKey() + "\t" + en.getValue());
 		}
 	}
-	void printUndirectedDegreeDistribution(){
+
+	synchronized void printUndirectedDegreeDistribution() {
 		PangeneNet pnet = this.getUnirected();
 		pnet.printDegreeDistribution();
 	}
-	
-	
-	void print(){
-		for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-			System.out.print(adjs_e.getKey()+": ");
-			for(Edge ed : adjs_e.getValue()){
-				System.out.print("("+ed.node+","+ed.score+")");
+
+	synchronized void print() {
+		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+			System.out.print(adjs_e.getKey() + ": ");
+			for (Edge ed : adjs_e.getValue()) {
+				System.out.print("(" + ed.node + "," + ed.score + ")");
 			}
 			System.out.print("\n");
 		}
 	}
-	
-	void saveToFile(String file, boolean directed) throws Exception{
+
+	synchronized void saveToFile(String file, boolean directed) throws Exception {
 		BufferedWriter writer = new BufferedWriter(new FileWriter(new File(file)));
-		if(directed){
-			for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-				for(Edge ed : adjs_e.getValue()){
-					writer.write(adjs_e.getKey()+"\t"+ed.node+"\t"+ed.score+"\n");
+		if (directed) {
+			for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+				for (Edge ed : adjs_e.getValue()) {
+					writer.write(adjs_e.getKey() + "\t" + ed.node + "\t" + ed.score + "\n");
 				}
 			}
-		}
-		else{
-			for(Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()){
-				for(Edge ed : adjs_e.getValue()){
-					if(adjs_e.getKey() <= ed.node){
-						writer.write(adjs_e.getKey()+"\t"+ed.node+"\t"+ed.score+"\n");
+		} else {
+			for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
+				for (Edge ed : adjs_e.getValue()) {
+					if (adjs_e.getKey() <= ed.node) {
+						writer.write(adjs_e.getKey() + "\t" + ed.node + "\t" + ed.score + "\n");
 					}
 				}
 			}
 		}
-		
+
 		writer.flush();
 		writer.close();
 	}
-	
 }
