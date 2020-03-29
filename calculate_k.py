@@ -23,7 +23,6 @@ print(alphabet)
 k = 0
 size = sum(alphabet.values())
 for count in alphabet.values():
-	# print(count / size, -math.log(count / size, len(alphabet)) * (count / size))
 	k += -math.log(count / size, len(alphabet)) * (count / size)
 
 print("uk = ", math.log(total_length, len(alphabet)))

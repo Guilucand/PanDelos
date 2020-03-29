@@ -27,7 +27,7 @@ public class PangeneIData {
 		return alphabet;
 	}
 
-	public static PangeneIData readFromFile(String file, int limit) throws Exception{
+	public static PangeneIData readFromFile(String file) throws Exception{
 		PangeneIData d = new PangeneIData();
 		
 		BufferedReader br = new BufferedReader(new FileReader(file));
@@ -37,7 +37,7 @@ public class PangeneIData {
 		String[] cc;
 		Map<String,Integer> genomeID = new HashMap<>();
 		Integer genomeid;
-	    while ((line = br.readLine()) != null && d.sequences.size() < limit) {
+	    while ((line = br.readLine()) != null) {
 	       // process the line.
 	    	if(nameLine){
 	    		cc = line.trim().split("\t");
@@ -59,7 +59,7 @@ public class PangeneIData {
 	    	}
 	    	nameLine = !nameLine;
 	    }
-	    
+
 	    d.genomeNames = new Vector<>();
 	    d.genomeNames.setSize(genomeID.size());
 	    for(Map.Entry<String,Integer> en : genomeID.entrySet()){

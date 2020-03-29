@@ -12,10 +12,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Pangenes {
 
-	public static void usage() {
-		System.err.println("Usage: cmd ifile.faa k ofile.net");
-	}
-
 	public static void main(String[] args) {
 
 		System.out.println("Working Directory = " +
@@ -23,40 +19,25 @@ public class Pangenes {
 
 		System.loadLibrary("native");
 
-		String ifile = null;
-		int k = 1;
-		String netofile = null;
-
-		int limit_rows = 0;
-
-		try {
-			ifile = args[0];
-			k = Integer.parseInt(args[1]);
-			netofile = args[2];
-			try {
-				limit_rows = Integer.parseInt(args[3]);
-			}
-			catch (Exception e) {
-				limit_rows = Integer.MAX_VALUE;
-			}
-		} catch (Exception e) {
-			usage();
-			System.exit(1);
-		}
+		Cli cli = new Cli(args);
 
 		PangeneIData pid;
 		try {
-			pid = PangeneIData.readFromFile(ifile, limit_rows);
+			pid = PangeneIData.readFromFile(cli.InputFile);
 		} catch (Exception e) {
 			e.printStackTrace();
 			return;
 		}
 
-		AtomicInteger doneGenomes = new AtomicInteger();
+		if (cli.OnlyOps) {
+			PangeneNative.printComplexity(cli.KValue, pid);
+			return;
+		}
 
 		long startt = System.currentTimeMillis();
-		PangeneNative nativ = new PangeneNative(k, pid);
+		PangeneNative nativ = new PangeneNative(cli.KValue, pid);
 
+		AtomicInteger doneGenomes = new AtomicInteger();
 
 		int nofGenomes = pid.genomeNames.size();
 		PangeneNet pnet = new PangeneNet();
@@ -69,13 +50,9 @@ public class Pangenes {
 		 *
 		 * */
 
-		int cores = Runtime.getRuntime().availableProcessors();
-		ExecutorService threadService = Executors.newFixedThreadPool(cores);
+		ExecutorService threadService = Executors.newFixedThreadPool(cli.ThreadsNum);
 
 		int sequencesCount = pid.sequences.size();
-
-		long memUsed = Runtime.getRuntime().totalMemory();
-		System.out.println("Memory used: " + (double)memUsed / (1024 * 1024) + "MB");
 
 		Object printLock = new Object();
 
@@ -85,8 +62,9 @@ public class Pangenes {
 
 			threadService.submit(() -> {
 				System.out.println("Working on genome " + finalG + "/" + nofGenomes);
-				final Scores scoresPart = nativ.generateScoresPart(finalG);
+				final Scores scoresPart = nativ.generateScoresPart(finalG, cli.ThreadsNum != 1);
 				System.out.println("Preprocessed genome " + finalG + "/" + nofGenomes);
+				System.out.println("Filtered count: " + scoresPart.scoresCount);
 
 				final float[] inter_thr_sum = new float[nofGenomes];
 				final float[] inter_thr_count = new float[nofGenomes];
@@ -141,9 +119,9 @@ public class Pangenes {
 					synchronized (printLock) {
 						System.out.println("Comparing genome " + finalG + " with " + i + ":");
 
-						System.out.println("score\t" + inter_thr + "\t" + inter_min_score[i] + "\t" + inter_max_score[i]);
-						System.out.println("perc\t" + inter_min_perc[i] + "\t" + inter_max_perc[i]);
-						System.out.println(pnet.countNodes());// + "\t" + pnet.countEdges());
+						System.out.println("Score\t" + inter_thr + "\t" + inter_min_score[i] + "\t" + inter_max_score[i]);
+						System.out.println("Perc\t" + inter_min_perc[i] + "\t" + inter_max_perc[i]);
+						System.out.println(pnet.countNodes() + "\t" + pnet.countEdges());
 					}
 				}
 
@@ -184,9 +162,9 @@ public class Pangenes {
 		}
 
 		long tott = System.currentTimeMillis() - startt;
+		long memUsed = Runtime.getRuntime().totalMemory();
+		System.out.println("JVM Memory used: " + (double)memUsed / (1024 * 1024) + "MB");
 		System.out.println("Total time: " + tott);
-		System.out.println("FMT;" + limit_rows + ";" + tott);
-
 
 		System.out.println("----------");
 		System.out.println("undirected degree distribution");
@@ -209,9 +187,9 @@ public class Pangenes {
 		}
 
 		System.out.println("----------");
-		System.out.println("writing into " + netofile + "");
+		System.out.println("writing into " + cli.OutputNetFile + "");
 		try {
-			pnet.saveToFile(netofile, false);
+			pnet.saveToFile(cli.OutputNetFile, false);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

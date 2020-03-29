@@ -36,9 +36,14 @@ public class PangeneNet {
 	}
 
 	public final Map<Integer, Set<Edge>> adjacents;
+	Set<Integer> nodes;
+
+	long totalEdges;
+	long totalNodes;
 
 	public PangeneNet() {
 		this.adjacents = new HashMap<>();
+		this.nodes = new HashSet<>();
 	}
 
 	public synchronized void addConnection(int src, int dest, double score) {
@@ -47,33 +52,28 @@ public class PangeneNet {
 			edges.add(new Edge(dest, score));
 			this.adjacents.put(src, edges);
 		} else {
-			this.adjacents.get(src).add(new Edge(dest, score));
+			Set<Edge> edges = this.adjacents.get(src);
+			int sizeBefore = edges.size();
+			edges.add(new Edge(dest, score));
+			totalEdges += edges.size() - sizeBefore;
+			nodes.add(dest);
+			totalNodes = nodes.size();
 		}
 	}
 
 	public synchronized Set<Integer> getNodeList() {
-		Set<Integer> nodes = new HashSet<>();
-		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
-			nodes.add(adjs_e.getKey());
-			for (Edge i : adjs_e.getValue())
-				nodes.add(i.node);
-		}
 		return nodes;
 	}
 
 	public synchronized long countNodes() {
-		return this.getNodeList().size();
+		return totalNodes;
 	}
 
 	public synchronized long countEdges() {
-		long count = 0;
-		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
-			count += adjs_e.getValue().size();
-		}
-		return count;
+		return totalEdges;
 	}
 
-	public synchronized PangeneNet getUnirected() {
+	public synchronized PangeneNet getUndirected() {
 		PangeneNet pnet = new PangeneNet();
 
 		for (Map.Entry<Integer, Set<Edge>> adjs_e : this.adjacents.entrySet()) {
@@ -87,7 +87,7 @@ public class PangeneNet {
 	}
 
 	public synchronized List<Set<Integer>> undirectedConnectedComponents() {
-		PangeneNet pnet = this.getUnirected();
+		PangeneNet pnet = this.getUndirected();
 		return pnet.connectedComponents();
 	}
 
@@ -142,7 +142,7 @@ public class PangeneNet {
 	}
 
 	synchronized void printUndirectedDegreeDistribution() {
-		PangeneNet pnet = this.getUnirected();
+		PangeneNet pnet = this.getUndirected();
 		pnet.printDegreeDistribution();
 	}
 

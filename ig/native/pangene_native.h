@@ -14,7 +14,7 @@ extern "C" {
  * Signature: (Linfoasys/cli/pangenes/PangeneIData;)V
  */
 JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences
-        (JNIEnv *, jobject, jobject, jint);
+        (JNIEnv *, jobject, jobject, jint, jboolean);
 
 /*
  * Class:     infoasys_cli_pangenes_PangeneNative
@@ -22,7 +22,7 @@ JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_preprocessSequen
  * Signature: (IILinfoasys/cli/pangenes/Scores;)V
  */
 JNIEXPORT void JNICALL Java_infoasys_cli_pangenes_PangeneNative_computeScores
-        (JNIEnv *, jobject, jint, jobject);
+        (JNIEnv *, jobject, jint, jobject, jint);
 
 #ifdef __cplusplus
 }
