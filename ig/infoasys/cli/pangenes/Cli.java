@@ -31,7 +31,7 @@ public class Cli {
                 "c"
         ).longOpt("complexity")
                 .hasArg(false)
-                .desc("Compute the required number of operations without computing the effective network")
+                .desc("Compute the required number of operations without computing the network (fast)")
                 .build());
 
         options.addOption(Option.builder(
@@ -64,7 +64,7 @@ public class Cli {
             CommandLine cmd = parser.parse(options, args);
 
             if (cmd.hasOption("h")) {
-                helpFormatter.printHelp("ant", options);
+                helpFormatter.printHelp("PanDelos [OPTIONS]", options);
                 System.exit(0);
             }
 
@@ -82,7 +82,7 @@ public class Cli {
         }
         catch (Exception e) {
             System.out.println("Error while parsing cli arguments!");
-            helpFormatter.printHelp("ant", options);
+            helpFormatter.printHelp("PanDelos [OPTIONS]", options);
             System.exit(1);
         }
     }

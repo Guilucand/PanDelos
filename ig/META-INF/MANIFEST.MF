@@ -1,0 +1,3 @@
+Manifest-Version: 1.0   
+Class-Path: . ext/ native/build/                                                                                                                                  
+Main-Class: infoasys.cli.pangenes.Pangenes

@@ -1,6 +1,7 @@
 package infoasys.cli.pangenes;
 
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,11 +76,24 @@ public class Pangenes {
 				final float[] inter_max_perc = new float[nofGenomes];
 				final float[] inter_min_perc = new float[nofGenomes];
 				Arrays.fill(inter_min_perc, 1.0f);
-				final boolean[] engagged = new boolean[sequencesCount];
+
+				// The engagged array should be different for each comparison genome
+				// leading to an array of [sequencesCount][nofGenomes] size.
+				// this should then be used to determine if we should consider
+				// the inter_min_score of the i-th genome to add this sequence to the map
+				// An alternative way is to iterate two times the scores, the first time updating only
+				// the inter_min/max_score arrays, then updating the relative threshold only when we set engagged to true
+//				final boolean[] engagged = new boolean[sequencesCount];
+				final BitSet[] engagged = new BitSet[sequencesCount];
+				for (int i = 0; i < engagged.length; i++) {
+					engagged[i] = new BitSet(nofGenomes);
+				}
 
 				Arrays.fill(inter_max_perc, 1.0f);
 
 				float min_inter_max_score = 1.0f;
+
+				boolean[] shouldAddConnection = new boolean[scoresPart.scoresCount];
 
 				for (int i = 0; i < scoresPart.scoresCount; i++) {
 					if (scoresPart.first_seq_genome[i] != scoresPart.second_seq_genome[i]) {
@@ -87,13 +101,14 @@ public class Pangenes {
 								scoresPart.scores[i] == scoresPart.max_genome_score_col[scoresPart.column[i]]) {
 							pnet.addConnection(scoresPart.row[i], scoresPart.column[i], scoresPart.scores[i]);
 							pnet.addConnection(scoresPart.column[i], scoresPart.row[i], scoresPart.scores[i]);
-							engagged[scoresPart.row[i]] = true;
+							shouldAddConnection[i] = true;
 
 							int sg = scoresPart.second_seq_genome[i];
 							float score = scoresPart.scores[i];
 							float perc = scoresPart.percs[i];
 							float otherPerc = scoresPart.tr_percs[i];
 
+							engagged[scoresPart.row[i]].set(sg);
 							inter_thr_sum[sg] += 2 * scoresPart.scores[i];
 							inter_thr_count[sg] += 2;
 							if (score < 1.0 && score > inter_max_score[sg]) {
@@ -125,20 +140,39 @@ public class Pangenes {
 					}
 				}
 
-				for (int i = 0; i < nofGenomes; i++) {
-					if (i == finalG) continue; // Exclude current genome from computation
-					min_inter_max_score = Math.min(min_inter_max_score, inter_max_score[i]);
+
+				float[] scoresRowThreshold = new float[sequencesCount];
+				Arrays.fill(scoresRowThreshold, Float.POSITIVE_INFINITY);
+
+				for (int i = 0; i < scoresPart.scoresCount; i++) {
+					if (shouldAddConnection[i]) {
+						int row = scoresPart.row[i];
+						int sg = scoresPart.second_seq_genome[i];
+						scoresRowThreshold[row] = Math.min(scoresRowThreshold[row], inter_max_score[sg]);
+					}
 				}
+
+//				for (int i = 0; i < nofGenomes; i++) {
+//					if (i == finalG) continue; // Exclude current genome from computation
+//					min_inter_max_score = Math.min(min_inter_max_score, inter_max_score[i]);
+//				}
 
 				/* get inter bbh */
 				/* also, calcolate threshold for inter non-bbh as the average non-null and non-bbh scores*/
 				for (int i = 0; i < scoresPart.scoresCount; i++) {
+//					if (scoresPart.row[i] == 1915 && scoresPart.column[i] == 1921) {
+//						int x = 5;
+//					}
+
 					 if ((scoresPart.row[i] < scoresPart.column[i]) &&
-							 engagged[scoresPart.row[i]] && scoresPart.first_seq_genome[i] == scoresPart.second_seq_genome[i] &&
-							 (scoresPart.scores[i] == 1.0f ||
-							(scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
+//							 engagged[scoresPart.row[i]].get(scoresPart.second_seq_genome[i]) &&
+							 scoresPart.first_seq_genome[i] == scoresPart.second_seq_genome[i] &&
+							 (scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
 									scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.column[i]]][scoresPart.second_seq_genome[i]] &&
-									scoresPart.scores[i] >= min_inter_max_score))) {
+									scoresPart.scores[i] >= scoresRowThreshold[scoresPart.row[i]]
+//									scoresPart.scores[i] >= min_inter_max_score
+							)) {
+
 						pnet.addConnection(scoresPart.row[i], scoresPart.column[i], scoresPart.scores[i]);
 					}
 				}
