@@ -46,7 +46,14 @@ impl Network {
 }
 
 pub fn load_net(file: impl AsRef<Path>) -> Network {
-    let reader = BufReader::new(File::open(file.as_ref()).unwrap());
+
+    let file = if let Ok(file) = File::open(file.as_ref()) { file } else {
+        return Network {
+            points: Default::default()
+        }
+    };
+
+    let reader = BufReader::new(file);
 
     let mut result = Vec::new();
 

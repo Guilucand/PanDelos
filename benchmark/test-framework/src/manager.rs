@@ -23,6 +23,10 @@ fn benchmark_command_get_output(name: &str,
 
     let start = std::time::Instant::now();
 
+    println!("Calling pandelos: {}", String::from(name) + " " + &args.join(" "));
+
+
+
     let mut process = command.args(args)
         .current_dir(dir.map(|x| PathBuf::from(x)).unwrap_or(std::env::current_dir().unwrap()))
         .stderr(Stdio::inherit())
