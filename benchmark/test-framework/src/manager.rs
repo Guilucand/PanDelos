@@ -168,13 +168,13 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
     let args_new;
     let args_vanilla;
     let cp;
+    let lpath;
 
     let args = if vanilla {
         cp = format!("{path}/ig/ext/commons-io-2.6.jar:{path}/ig/ig.jar",
                      path = path.as_ref().to_str().unwrap());
 
         args_vanilla = [
-                "-Djava.library.path=/home/andrea/PanDelos/ig/native/build",
                 "-cp",
                 &cp,
                 "infoasys.cli.pangenes.Pangenes",
@@ -186,8 +186,11 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
     }  else {
         cp = format!("{path}/ig/ext/commons-io-2.6.jar:{path}/ig/ext/commons-cli-1.4.jar:{path}/ig/ig.jar",
                      path = path.as_ref().to_str().unwrap());
+
+        lpath = format!("-Djava.library.path={path}/ig/native/build", path = path.as_ref().to_str().unwrap());
+
         args_new = [
-            "-Djava.library.path=/home/andrea/PanDelos/ig/native/build",
+            &lpath,
             "-cp",
             &cp,
             "infoasys.cli.pangenes.Pangenes",
