@@ -118,8 +118,8 @@ fn process_args(args: Args) -> ProcessResults {
                 }
             }
 
-            for x in &a.points {
-                if !b.points.contains(&x) {
+            for x in &b.points {
+                if !a.points.contains(&x) {
                     missingb += 1;
                 }
             }
@@ -128,8 +128,8 @@ fn process_args(args: Args) -> ProcessResults {
 
             ProcessResults::Check(CheckResults {
                 equal: present,
-                missing_new: missinga,
-                missing_vanilla: missingb,
+                missing_new: missingb,
+                missing_vanilla: missinga,
                 wrong_weight: diff_weight
             })
         }
