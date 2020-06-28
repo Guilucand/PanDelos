@@ -1,0 +1,19 @@
+[package]
+name = "test-framework"
+version = "0.1.0"
+authors = ["Andrea Cracco <guilucand@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+syn = "1.0.33"
+serde = { version = "1.0.114", features = ["derive"] }
+structopt = "0.3.15"
+spork = { path = "spork.rs" }
+libc = "0.2.71"
+chrono = { version = "0.4.11", features = ["serde"] }
+md5 = "0.7.0"
+itertools = "0.9.0"
+serde_json = "1.0.55"
+dirs = "3.0.0"
