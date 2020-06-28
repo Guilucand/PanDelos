@@ -10,7 +10,6 @@ edition = "2018"
 syn = "1.0.33"
 serde = { version = "1.0.114", features = ["derive"] }
 structopt = "0.3.15"
-spork = { path = "spork.rs" }
 libc = "0.2.71"
 chrono = { version = "0.4.11", features = ["serde"] }
 md5 = "0.7.0"
