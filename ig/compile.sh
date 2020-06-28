@@ -5,7 +5,5 @@ cmake .. -DCMAKE_BUILD_TYPE=RELEASE
 make -j
 cd ../../
 
-javac -classpath ext/commons-io-2.6.jar -classpath ext/commons-cli-2.6.jar  -sourcepath ./ infoasys/cli/pangenes/Pangenes.java && jar cvf ig.jar infoasys/
+javac -classpath ext/commons-io-2.6.jar -classpath ext/commons-cli-1.4.jar  -sourcepath ./ infoasys/cli/pangenes/Pangenes.java && jar cvfm ig.jar META-INF/MANIFEST.MF infoasys/ ext/ native/build/*native*
 rm $(find -name '*.class')
-
-
