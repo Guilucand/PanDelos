@@ -1,5 +1,5 @@
 #!/bin/bash
-mkdir -q native/build
+mkdir -p native/build
 cd native/build
 cmake .. -DCMAKE_BUILD_TYPE=RELEASE
 make -j
