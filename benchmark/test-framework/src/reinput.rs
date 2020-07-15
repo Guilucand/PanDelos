@@ -6,6 +6,7 @@ use std::io::Write;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher, BuildHasherDefault};
 use std::collections;
+use crate::manager::UnwrapExitMessage;
 
 #[derive(Clone)]
 pub struct Fasta {
@@ -86,7 +87,8 @@ pub fn reinput(
 impl ReInput {
     pub fn new(input: impl AsRef<Path>) -> ReInput {
 
-        let reader = BufReader::new(File::open(input).unwrap());
+        let reader = BufReader::new(File::open(&input).onerror_args(format_args!("Cannot open file: {}",
+                                                                                input.as_ref().display())));
 
         let mut seqs = InputDetMap::default();
 

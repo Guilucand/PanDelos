@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio, Child};
+use std::process::{Command, Stdio, Child, exit};
 use std::cell::UnsafeCell;
 use std::time::Duration;
 use std::io::{BufReader, BufRead, Read};
@@ -8,11 +8,36 @@ use std::os::raw::c_int;
 use std::mem::MaybeUninit;
 use crate::bench::BenchmarkResults;
 use std::convert::TryInto;
+use std::fmt::Arguments;
 
 pub fn make_error(error: &str) -> ! {
     eprintln!("{}", error);
     std::process::exit(1);
 }
+
+pub trait UnwrapExitMessage {
+    type Target;
+    fn onerror_msg(self, message: &str) -> Self::Target;
+    fn onerror_args(self, args: Arguments) -> Self::Target;
+}
+
+impl<T, U: ToString> UnwrapExitMessage for Result<T, U> {
+    type Target = T;
+    fn onerror_msg(self, message: &str) -> Self::Target {
+        self.onerror_args(format_args!("{}", message))
+    }
+
+    fn onerror_args(self, args: Arguments) -> Self::Target {
+        match self {
+            Ok(x) => x,
+            Err(err) => {
+                eprintln!("Wargo command failed: {} [{}]!", args, err.to_string());
+                exit(1);
+            },
+        }
+    }
+}
+
 
 
 fn benchmark_command_get_output(name: &str,
@@ -164,7 +189,8 @@ pub fn build_output(
 pub fn execute_pandelos(path: impl AsRef<Path>,
                         input: impl AsRef<Path>,
                         output_dir: impl AsRef<Path>,
-                        k: u32, vanilla: bool) -> BenchmarkResults {
+                        k: u32, vanilla: bool,
+                        print_only: bool) -> BenchmarkResults {
 
     let kvalue: String = k.to_string();
     let output_path = build_output(output_dir, &input, vanilla);
@@ -205,6 +231,14 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
         &args_new[..]
     };
 
-    let (_output, bench) = benchmark_command_get_output("java".as_ref(), args, None, true);
-    bench
+    if !print_only {
+        let (_output, bench) = benchmark_command_get_output("java".as_ref(), args, None, true);
+        bench
+    }
+    else {
+        println!("java {}", args.join(" "));
+        BenchmarkResults::new(
+            0.0, 0.0, 0.0, 0.0
+        )
+    }
 }

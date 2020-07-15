@@ -18,7 +18,7 @@ use std::fs::{File, OpenOptions};
 use serde::Serialize;
 use std::cmp::max;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Clone)]
 enum Args {
     Run {
         path: String,
@@ -29,7 +29,9 @@ enum Args {
         #[structopt(short, long)]
         sequences_max: Option<usize>,
         #[structopt(short, long)]
-        nc: bool
+        nc: bool,
+        #[structopt(short, long = "cmd-only")]
+        cmd_only: bool
     },
     Check {
         first: String,
@@ -47,6 +49,10 @@ enum Args {
         jump_sequences: Option<usize>,
         #[structopt(short, long)]
         factor_jump_sequences: Option<f32>,
+        #[structopt(short, long)]
+        recompile: bool,
+        #[structopt(short, long = "cmd-only")]
+        cmd_only: bool
     }
 }
 
@@ -71,9 +77,10 @@ fn main() {
 
 fn process_args(args: Args) -> ProcessResults {
 
-    match args {
-        Args::Run { path, output_dir, test_files, genomes_max, sequences_max, nc } => {
-            if !nc {
+    match args.clone() {
+        Args::Run { path, output_dir, test_files, genomes_max, sequences_max, nc, cmd_only } => {
+
+            if !nc && !cmd_only {
                 manager::compile_pandelos(&path);
             }
 
@@ -85,11 +92,14 @@ fn process_args(args: Args) -> ProcessResults {
                                             sequences_max, genomes_max);
 
                 let k = compute_k::compute_k(&file);
-                let bench = manager::execute_pandelos(&path,
-                                          &file,
-                                          &output_dir,
-                                          k,
-                                          path.to_lowercase().contains("vanilla"));
+                let bench = manager::execute_pandelos(
+                    &path,
+                    &file,
+                    &output_dir,
+                    k,
+                    path.to_lowercase().contains("vanilla"),
+                    cmd_only
+                );
                 res.push(bench);
             }
             ProcessResults::Run(res)
@@ -110,7 +120,7 @@ fn process_args(args: Args) -> ProcessResults {
 
                     let val = b.points.get(&x).unwrap();
                     if (x.value - val.value).abs() > 0.001 {
-                        println!("{} {}", x.value, val.value);
+                        println!("{} <-> {} = {} ~ {}", x.first, x.second, x.value, val.value);
                         diff_weight += 1;
                     }
 
@@ -133,7 +143,8 @@ fn process_args(args: Args) -> ProcessResults {
                 wrong_weight: diff_weight
             })
         }
-        Args::Auto { mut input, mut genomes_max, mut sequences_max, jump_sequences, factor_jump_sequences } => {
+        Args::Auto { mut input, mut genomes_max, mut sequences_max, jump_sequences, factor_jump_sequences, recompile, cmd_only } => {
+
             let mut work_done = true;
 
             while work_done {
@@ -145,7 +156,8 @@ fn process_args(args: Args) -> ProcessResults {
                     test_files: input.clone(),
                     genomes_max,
                     sequences_max,
-                    nc: true
+                    nc: !recompile,
+                    cmd_only
                 });
 
                 let benchv = process_args(Args::Run {
@@ -154,7 +166,8 @@ fn process_args(args: Args) -> ProcessResults {
                     test_files: input.clone(),
                     genomes_max,
                     sequences_max,
-                    nc: true
+                    nc: !recompile,
+                    cmd_only
                 });
 
                 let bench = if let ProcessResults::Run(b) = bench { b } else { panic!("Error!") };
