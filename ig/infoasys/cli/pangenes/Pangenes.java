@@ -162,16 +162,12 @@ public class Pangenes {
 				/* get inter bbh */
 				/* also, calcolate threshold for inter non-bbh as the average non-null and non-bbh scores*/
 				for (int i = 0; i < scoresPart.scoresCount; i++) {
-//					if (scoresPart.row[i] == 1915 && scoresPart.column[i] == 1921) {
-//						int x = 5;
-//					}
-
-					 if ((scoresPart.row[i] < scoresPart.column[i]) &&
+					if ((scoresPart.row[i] < scoresPart.column[i]) &&
 //							 engagged[scoresPart.row[i]].get(scoresPart.second_seq_genome[i]) &&
 							 scoresPart.first_seq_genome[i] == scoresPart.second_seq_genome[i] &&
 							 (scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
 									scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.column[i]]][scoresPart.second_seq_genome[i]] &&
-									scoresPart.scores[i] >= scoresRowThreshold[scoresPart.row[i]]
+									scoresPart.scores[i] >= scoresRowThreshold[scoresPart.row[i]] //&&
 //									scoresPart.scores[i] >= min_inter_max_score
 							)) {
 

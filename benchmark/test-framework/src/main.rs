@@ -115,6 +115,7 @@ fn process_args(args: Args) -> ProcessResults {
             for x in &a.points {
                 if !b.points.contains(&x) {
                     missinga += 1;
+                    println!("MissingA {} <-> {} weight: {}", x.first, x.second, x.value);
                 }
                 else {
 
@@ -131,6 +132,7 @@ fn process_args(args: Args) -> ProcessResults {
             for x in &b.points {
                 if !a.points.contains(&x) {
                     missingb += 1;
+                    println!("MissingB {} <-> {} weight: {}", x.first, x.second, x.value);
                 }
             }
 

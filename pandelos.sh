@@ -57,7 +57,7 @@ if [ -z "$oprefix" ]; then
 fi
 
 
-tmp=`mktemp -p ./`
+tmp=`mktemp -p ./ -t $(basename "$idb" .faa).XXXXXX`
 echo "working on $tmp"
 dnet="${tmp}.net"
 clus="${oprefix}.clus"
@@ -69,8 +69,8 @@ k=`grep -E "^k =" "$tmp" | sed s/k\ =\ //g`
 echo "k = $k"
 echo "clustering ..."
 date
-#java -server -d64 -Xmn2560M -Xms6144M -Xmx60144M 
-java -Djava.library.path="${sdir}/ig/native/build" -cp "${sdir}/ext/commons-io-2.6.jar" -cp "$ig" infoasys.cli.pangenes.Pangenes "$idb" $k "$dnet" > "$tmp"
+#java -server -d64 -Xmn2560M -Xms6144M -Xmx60144M
+java -Djava.library.path="${sdir}/ig/native/build" -cp "${sdir}/ig/ext/commons-io-2.6.jar:${sdir}/ig/ext/commons-cli-1.4.jar:$ig" infoasys.cli.pangenes.Pangenes -i "$idb" -k $k -o "$dnet" > "$tmp"
 echo "de-clustering ..."
 date
 python3 "$nc" "$idb"  "$dnet" >> "$tmp"
