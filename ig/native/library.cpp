@@ -86,6 +86,12 @@ inline rank_t update_rank_hash(pair_info const& info, rank_t current, jchar next
 }
 
 void rank_init(pair_info &info, int kvalue) {
+
+    if (kvalue <= 0) {
+        printf("K value must be greater than 0.");
+        exit(1);
+    }
+
     info.kvalue = kvalue;
     int rank = 0;
     for (int i = 0; i < 256; i++) {
