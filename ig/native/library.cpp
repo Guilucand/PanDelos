@@ -112,7 +112,7 @@ void rank_init(pair_info &info, int kvalue) {
     }
 
     if (!has_overflow) {
-        auto rank_tmp = info.last_multiplier;
+        auto rank_tmp = info.last_multiplier * info.rank_base;
         info.rank_byte_order = 0;
         while (rank_tmp) {
             info.rank_byte_order++;
@@ -120,7 +120,7 @@ void rank_init(pair_info &info, int kvalue) {
         }
     }
     else {
-        info.rank_byte_order = 7;
+        info.rank_byte_order = 8;
     }
 }
 
@@ -158,20 +158,24 @@ void counting_sort(vector<rank_t> &vec, unsigned int byte_ref) {
     }
 }
 
+inline unsigned char ext_byte(unsigned int value, int byteidx) {
+    return (value >> (byteidx * 8u)) & 0xFFu;
+}
+
 template <class T, class F>
 void counting_sort_ext(vector<T> &vec, unsigned int byte_ref, F mapping) {
     int counts[256 + 1] = {0};
 
     vector<T> tmp = vec;
 
-    for (auto val : vec) counts[((mapping(val) >> (byte_ref * 8u)) & 0xFFu) + 1]++;
+    for (auto val : vec) counts[ext_byte(mapping(val), byte_ref) + 1]++;
 
     for (int i = 1; i < 256; i++) {
         counts[i] += counts[i-1];
     }
 
     for (auto val : tmp) {
-        vec[counts[(mapping(val) >> (byte_ref * 8u)) & 0xFFu]++] = val;
+        vec[counts[ext_byte(mapping(val), byte_ref)]++] = val;
     }
 }
 
@@ -243,7 +247,7 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
 
             for (auto kmer : do_ranking(info, seq, len,
                                         info.hash_fallback ? update_rank_hash : update_rank)) {
-                kmers.emplace_back(kmer, i, 0);
+                kmers.emplace_back(kmer, i, 1);
             }
         }
         else {
@@ -287,11 +291,12 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
     int current_rank_start = 0;
     long ranges_count = 0;
     for (int i = 0; i < kmers.size(); i++) {
-        if (current_rank != kmers[i].rank || (i == kmers.size() - 1)) {
+        bool last = (i == kmers.size() - 1);
+        if (current_rank != kmers[i].rank || last) {
 
             // Process current rank
             int prev_rank_begin = current_rank_start;
-            int prev_rank_end = i;
+            int prev_rank_end = i + (last ? 1 : 0);
 
             if (prev_rank_end - prev_rank_begin > 1) {
 
@@ -335,11 +340,11 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
     cout << "------------" << endl;
     cout << "COMPUTATIONAL COSTS: " << endl;
     cout << "Total cost: " << global_cost << " lookups" << endl;
-    cout << "Linear ratio: " << ((float)global_cost / total_sequences_length) << endl;
+    cout << "Linear ratio: " << ((float)global_cost / (float)total_sequences_length) << endl;
 
     float estimated_ops_per_ms = 40505.500586716735;
 
-    long ms = (long)(global_cost / estimated_ops_per_ms);
+    long ms = (long)((float)global_cost / estimated_ops_per_ms);
 
     cout << "Estimated time: ";
     if (ms < 10000) {

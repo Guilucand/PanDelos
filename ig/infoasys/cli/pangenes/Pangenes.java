@@ -99,8 +99,10 @@ public class Pangenes {
 					if (scoresPart.first_seq_genome[i] != scoresPart.second_seq_genome[i]) {
 						if (scoresPart.scores[i] == scoresPart.max_genome_score[scoresPart.scoresMaxMappings[scoresPart.row[i]]][scoresPart.second_seq_genome[i]] &&
 								scoresPart.scores[i] == scoresPart.max_genome_score_col[scoresPart.column[i]]) {
+
 							pnet.addConnection(scoresPart.row[i], scoresPart.column[i], scoresPart.scores[i]);
 							pnet.addConnection(scoresPart.column[i], scoresPart.row[i], scoresPart.scores[i]);
+
 							shouldAddConnection[i] = true;
 
 							int sg = scoresPart.second_seq_genome[i];
