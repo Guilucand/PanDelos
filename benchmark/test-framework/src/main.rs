@@ -17,42 +17,64 @@ use itertools::izip;
 use std::fs::{File, OpenOptions};
 use serde::Serialize;
 use std::cmp::max;
+use chrono::{DateTime, Utc};
 
 #[derive(StructOpt, Debug, Clone)]
 enum Args {
     Run {
+        /// PanDelos root directory
         path: String,
+        /// Output dir to save the results
         output_dir: String,
+        /// List of test files (.faa) to benchmark
         test_files: Vec<String>,
         #[structopt(short, long)]
+        /// Maximum allowed genomes
         genomes_max: Option<usize>,
         #[structopt(short, long)]
+        /// Maximum allowed sequences
         sequences_max: Option<usize>,
         #[structopt(short, long)]
+        /// Skip PanDelos recompile
         nc: bool,
         #[structopt(short, long = "cmd-only")]
+        /// Print only the command required to do the actual test
         cmd_only: bool
     },
     Check {
+        /// First result to check (.net)
         first: String,
+        /// Second result to check (.net)
         second: String,
         #[structopt(short, long)]
+        /// Print all differences
         verbose: bool
     },
     Auto {
+        /// .faa files to benchmark
         input: Vec<String>,
         #[structopt(short, long)]
+        /// Maximum number of genomes allowed
         genomes_max: Option<usize>,
         #[structopt(short, long)]
+        /// Start (or max) number of sequences allowed
         sequences_max: Option<usize>,
         #[structopt(short, long)]
+        /// Sequences to add at each new iteration
         jump_sequences: Option<usize>,
         #[structopt(short, long)]
+        /// Multiplier factor that scales the number of sequences between different runs.
+        /// If jump_sequences is specified, the max between the two values (+js or *fjs) is taken
         factor_jump_sequences: Option<f32>,
         #[structopt(short, long)]
+        /// Recompile the java and native parts of PanDelos
         recompile: bool,
         #[structopt(short, long = "cmd-only")]
-        cmd_only: bool
+        /// Print only the required commands on the cli
+        cmd_only: bool,
+        #[structopt(short = "n", long)]
+        /// Run only the new version (useful for large files)
+        new_only: bool
     }
 }
 
@@ -145,7 +167,7 @@ fn process_args(args: Args) -> ProcessResults {
                 wrong_weight: diff_weight
             })
         }
-        Args::Auto { mut input, mut genomes_max, mut sequences_max, jump_sequences, factor_jump_sequences, recompile, cmd_only } => {
+        Args::Auto { mut input, mut genomes_max, mut sequences_max, jump_sequences, factor_jump_sequences, recompile, cmd_only, new_only } => {
 
             let mut work_done = true;
 
@@ -162,15 +184,20 @@ fn process_args(args: Args) -> ProcessResults {
                     cmd_only
                 });
 
-                let benchv = process_args(Args::Run {
-                    path: dirs::home_dir().unwrap().join("PanDelos-vanilla").to_str().unwrap().to_string(),
-                    output_dir: "results/".to_string(),
-                    test_files: input.clone(),
-                    genomes_max,
-                    sequences_max,
-                    nc: !recompile,
-                    cmd_only
-                });
+                let benchv = if !new_only {
+                    process_args(Args::Run {
+                        path: dirs::home_dir().unwrap().join("PanDelos-vanilla").to_str().unwrap().to_string(),
+                        output_dir: "results/".to_string(),
+                        test_files: input.clone(),
+                        genomes_max,
+                        sequences_max,
+                        nc: !recompile,
+                        cmd_only
+                    })
+                }
+                else {
+                    ProcessResults::Run(vec![])
+                };
 
                 let bench = if let ProcessResults::Run(b) = bench { b } else { panic!("Error!") };
                 let benchv = if let ProcessResults::Run(b) = benchv { b } else { panic!("Error!") };
