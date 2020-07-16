@@ -109,7 +109,8 @@ void rank_init(pair_info &info, int kvalue) {
         if (has_overflow) {
             info.last_multiplier %= RABIN_MODULO;
         }
-        else if (ovflw_test > info.last_multiplier) {
+        else if ((ovflw_test > info.last_multiplier) ||
+                (ovflw_test * info.rank_base > info.last_multiplier * info.rank_base)) {
             has_overflow = true;
             info.hash_fallback = true;
             info.last_multiplier = ((ovflw_test % RABIN_MODULO) * info.rank_base) % RABIN_MODULO;
@@ -164,7 +165,7 @@ void counting_sort(vector<rank_t> &vec, unsigned int byte_ref) {
     }
 }
 
-inline unsigned char ext_byte(unsigned int value, int byteidx) {
+inline unsigned char ext_byte(rank_t value, int byteidx) {
     return (value >> (byteidx * 8u)) & 0xFFu;
 }
 
