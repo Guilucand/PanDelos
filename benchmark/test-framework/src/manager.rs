@@ -205,6 +205,7 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
                      path = path.as_ref().to_str().unwrap());
 
         args_vanilla = [
+                "-Xmx2048g",
                 "-cp",
                 &cp,
                 "infoasys.cli.pangenes.Pangenes",
@@ -220,6 +221,7 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
         lpath = format!("-Djava.library.path={path}/ig/native/build", path = path.as_ref().to_str().unwrap());
 
         args_new = [
+            "-Xmx2048g",
             &lpath,
             "-cp",
             &cp,
