@@ -1,8 +1,0 @@
-.idea
-*.log
-*.iml
-*.txt
-*.net
-*.class
-out/
-profiler/

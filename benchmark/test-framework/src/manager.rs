@@ -163,7 +163,15 @@ fn run_command(name: &Path, args: &[&str], dir: Option<PathBuf>) {
 }
 
 pub fn compile_pandelos<P: AsRef<Path>>(path: P) {
-    let working_dir = path.as_ref().join("ig");
+
+
+
+    let working_dir = if path.as_ref().join("pandelos-native").exists() {
+        path.as_ref().join("pandelos-native")
+    } else {
+        path.as_ref().join("ig")
+    };
+
     let exname = "bash";
 
     let wdir = working_dir.join("compile.sh");
@@ -194,6 +202,28 @@ pub fn execute_pandelos(path: impl AsRef<Path>,
 
     let kvalue: String = k.to_string();
     let output_path = build_output(output_dir, &input, vanilla);
+
+    // New version
+    if path.as_ref().join("pandelos-native").exists() {
+        let args = [
+            "-i", input.as_ref().to_str().unwrap(),
+            "-k", &kvalue,
+            "-o", &output_path.as_ref().to_str().unwrap()
+        ];
+
+        let path = path.as_ref().join("pandelos-native/build/");
+
+        return if !print_only {
+            let (_output, bench) = benchmark_command_get_output(
+                path.join("PanDelos").to_str().unwrap(), &args, None, true);
+            bench
+        } else {
+            println!("{}/PanDelos {}", path.display(), args.join(" "));
+            BenchmarkResults::new(
+                0.0, 0.0, 0.0, 0.0
+            )
+        }
+    }
 
     let args_new;
     let args_vanilla;
