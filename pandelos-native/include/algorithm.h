@@ -7,7 +7,21 @@
 
 #include <pangene_idata.h>
 
-typedef uint64_t rank_t;
+//typedef uint64_t rank_t;
+//typedef __uint128_t rank_mul_t;
+//#define RABIN_MODULO ((rank_t)18446744073709551557ULL)
+//typedef uint32_t count_t;
+
+typedef uint32_t rank_t;
+typedef uint64_t rank_mul_t;
+#define RABIN_MODULO ((rank_t)4294967291UL)
+typedef uint32_t count_t;
+
+//typedef uint16_t rank_t;
+//typedef uint32_t rank_mul_t;
+//#define RABIN_MODULO ((rank_t)65521U)
+//typedef uint16_t count_t;
+
 typedef uint32_t seq_id_t;
 typedef uint32_t gen_id_t;
 
@@ -28,9 +42,9 @@ struct scores {
 };
 
 struct kmer_rank {
-    rank_t rank;
     seq_id_t seq;
-    unsigned int count;
+    rank_t rank;
+    count_t count;
 
     inline kmer_rank() {}
 
@@ -45,12 +59,6 @@ struct kmer_rank {
         count += dupl;
         return dupl;
     }
-};
-
-struct kmers_range {
-    kmer_rank *start;
-    kmer_rank *current;
-    kmer_rank *end;
 };
 
 struct seq_computation_cost {
@@ -78,7 +86,7 @@ struct pair_info {
     std::vector<unsigned int> kseq_lengths;
     std::vector<gen_id_t> seq_gen_mapping;
     std::vector<std::vector<seq_id_t>> genome_sequences;
-    std::vector<std::vector<kmers_range>> kmers_ranges;
+    std::vector<std::vector<seq_id_t>> kmers_ranges_start;
     std::vector<seq_computation_cost> computation_costs;
 };
 

@@ -12,8 +12,6 @@
 
 using namespace std;
 
-#define RABIN_MODULO ((uint64_t)18446744073709551557ULL)
-
 inline rank_t update_rank(pair_info const& info, rank_t current, unsigned char next, unsigned char pop) {
     current -= info.rank_values[pop] * info.last_multiplier;
     rank_t result = current * info.rank_base + info.rank_values[next];
@@ -21,8 +19,8 @@ inline rank_t update_rank(pair_info const& info, rank_t current, unsigned char n
 }
 
 inline rank_t update_rank_hash(pair_info const& info, rank_t current, unsigned char next, unsigned char pop) {
-    __uint128_t ncurrent = current + RABIN_MODULO - info.rank_values[pop] * info.last_multiplier;
-    rank_t result = ((__uint128_t)ncurrent * (__uint128_t)info.rank_base + (__uint128_t)info.rank_values[next])
+    rank_mul_t ncurrent = current + RABIN_MODULO - info.rank_values[pop] * info.last_multiplier;
+    rank_t result = ((rank_mul_t)ncurrent * (rank_mul_t)info.rank_base + (rank_mul_t)info.rank_values[next])
             % RABIN_MODULO;
     return result;
 }
@@ -207,13 +205,13 @@ pair_info preprocess_sequences(const pangene_idata &data, uint32_t kvalue, bool 
     }
     kmers.resize(uniqi+1);
 
-    info.kmers_ranges.resize(info.sequences_count);
+    info.kmers_ranges_start.resize(info.sequences_count);
     for (int i = 0; i < info.sequences_count; i++) {
-        info.kmers_ranges.reserve(info.kseq_lengths[i]);
+        info.kmers_ranges_start.reserve(info.kseq_lengths[i]);
     }
 
     info.computation_costs.resize(info.sequences_count);
-    vector<vector<kmers_range>> &kmer_ranges = info.kmers_ranges;
+    vector<vector<seq_id_t>> &kmer_ranges = info.kmers_ranges_start;
 
     rank_t current_rank = kmers.begin()->rank;
     int current_rank_start = 0;
@@ -238,15 +236,7 @@ pair_info preprocess_sequences(const pangene_idata &data, uint32_t kvalue, bool 
 
                 for (int j = prev_rank_begin; j < prev_rank_end; j++) {
                     if (!onlyComplexity) {
-                        kmer_ranges[kmers[j].seq].push_back(
-                                kmers_range{
-                                        .start = kmers.data() + prev_rank_begin,
-                                        .current = kmers.data() + j,
-                                        .end = kmers.data() + prev_rank_end
-                                });
-                        if (kmers[prev_rank_begin].rank == 135307049570) {
-                            cout << "Found range " << i << endl;
-                        }
+                        kmer_ranges[kmers[j].seq].push_back(prev_rank_begin);
                     }
                     info.computation_costs[kmers[j].seq].total_visited += prev_rank_end - prev_rank_begin;
                 }
@@ -344,51 +334,41 @@ scores compute_scores(const pair_info &info, const vector<seq_id_t> &sequences, 
 //        memset(row_connection_perc_cnt.data(), 0, row_connection_perc_cnt.size() * sizeof(int));
 //        memset(row_transposed_perc_cnt.data(), 0, row_transposed_perc_cnt.size() * sizeof(int));
 
-        vector<kmer_rank*> pointers(info.kmers_ranges[row].size());
-        for (size_t i = 0; i < info.kmers_ranges[row].size(); i++) {
-            pointers[i] = info.kmers_ranges[row][i].start;
-        }
+        const kmer_rank *kmers_endptr = info.kmers.data() + info.kmers.size();
 
-        // Sequences steps to keep memory locality and avoid cache misses
-        int sequences_step = 2048;
+        int index = 0;
+        for (auto range_start : info.kmers_ranges_start[row]) {
 
-        for (int max_allowed_sequence = sequences_step;
-             max_allowed_sequence < info.sequences_count + sequences_step;
-             max_allowed_sequence += sequences_step) {
+            auto last_it = &info.kmers[range_start];
+            auto it = &info.kmers[range_start];
 
-            int index = 0;
-            for (auto &range : info.kmers_ranges[row]) {
-
-                bool found = false;
-
-                auto &it = pointers[index];
-                unsigned int my_cnt = range.current->count;
-                while (it < range.end && it->seq <= max_allowed_sequence) {
-
-                    // Reinitialize the cell if color is different
-                    if (reset_colors[it->seq] != color) {
-                        reset_colors[it->seq] = color;
-                        colored_cells.push_back(it->seq);
-                        row_intersection_size[it->seq] = 0;
-                        row_connection_perc_cnt[it->seq] = 0;
-                        row_transposed_perc_cnt[it->seq] = 0;
-                    }
-
-                    if (1 == row && it->seq == 5614) {
-                        found = true;
-                    }
-
-                    row_intersection_size[it->seq] += min(it->count, my_cnt);
-                    row_connection_perc_cnt[it->seq] += my_cnt;
-                    row_transposed_perc_cnt[it->seq] += it->count;
-                    it++;
+            count_t my_cnt;
+            while (it < kmers_endptr && last_it->rank == it->rank) {
+                if (it->seq == row) {
+                    my_cnt = it->count;
+                    break;
                 }
-                index++;
-
-                if (found) {
-//                    cout << "Found " << range.current->rank << endl;
-                }
+                it++;
             }
+
+            it = &info.kmers[range_start];
+            while (it < kmers_endptr && last_it->rank == it->rank) {
+
+                // Reinitialize the cell if color is different
+                if (reset_colors[it->seq] != color) {
+                    reset_colors[it->seq] = color;
+                    colored_cells.push_back(it->seq);
+                    row_intersection_size[it->seq] = 0;
+                    row_connection_perc_cnt[it->seq] = 0;
+                    row_transposed_perc_cnt[it->seq] = 0;
+                }
+
+                row_intersection_size[it->seq] += min(it->count, my_cnt);
+                row_connection_perc_cnt[it->seq] += my_cnt;
+                row_transposed_perc_cnt[it->seq] += it->count;
+                it++;
+            }
+            index++;
         }
 
         // Clear the identity cell, it's faster than an 'if' inside the loop
@@ -413,13 +393,6 @@ scores compute_scores(const pair_info &info, const vector<seq_id_t> &sequences, 
 
             // Add to nonzero cells only if score is > 0
             if (score > 0.0f) {
-
-                if ((1 == row && col_index == 5614) ||
-                    (5614 == row && col_index == 1)) {
-                    int x = 5;
-                }
-
-
                 nonzero_cells.push_back(mat_cell{
                         .score = score,
                         .perc = perc,
@@ -435,87 +408,10 @@ scores compute_scores(const pair_info &info, const vector<seq_id_t> &sequences, 
     }
 
     return move(scores {
-            .sequences = move(sequences),
+            .sequences = sequences,
             .flat_map = move(flat_map),
             .non_zero = move(nonzero_cells),
             .max_scores = move(max_scores),
             .col_max_scores = move(col_max_scores)
     });
 }
-
-//void Java_infoasys_cli_pangenes_PangeneNative_computeScores(size_t genome_id, jobject out_scores, int step_size) {
-//
-//    pair_info const& info = global_info;
-//
-//    unsigned int rows_count = info.genome_sequences[genome_id].size();
-//
-//    cout << "Genome " << genome_id << " cost = " << std::accumulate(
-//            info.genome_sequences[genome_id].begin(),
-//            info.genome_sequences[genome_id].end(),
-//            0UL, [&info](auto a, auto b) { return a + info.computation_costs[b].total_visited; }) << endl;
-//
-//    scores current_scores = compute_scores(info, info.genome_sequences[genome_id], step_size);
-//
-//    jclass scores_out_cl = env->GetObjectClass(out_scores);
-//
-//    env->SetIntField(out_scores, env->GetFieldID(scores_out_cl, "scoresCount", "I"), current_scores.non_zero.size());
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "scoresMaxMappings", "[I"),
-//            create_jni_int_array(env, (jint*)current_scores.flat_map.data(), current_scores.flat_map.size()));
-//    assert(sizeof(jint) == sizeof(seq_id_t));
-//
-//    unsigned int cells_count = current_scores.non_zero.size();
-//
-//    vector<jint> tmp_integer(cells_count);
-//    vector<jfloat> tmp_floating(cells_count);
-//
-//    for (int i = 0; i < cells_count; i++) tmp_floating[i] = current_scores.non_zero[i].score;
-//    jfloatArray cells_scores_arr = create_jni_float_array(env, tmp_floating.data(), tmp_floating.size());
-//
-//    for (int i = 0; i < cells_count; i++) tmp_floating[i] = current_scores.non_zero[i].perc;
-//    jfloatArray cells_percs_arr = create_jni_float_array(env, tmp_floating.data(), tmp_floating.size());
-//
-//    for (int i = 0; i < cells_count; i++) tmp_floating[i] = current_scores.non_zero[i].tr_perc;
-//    jfloatArray cells_trpercs_arr = create_jni_float_array(env, tmp_floating.data(), tmp_floating.size());
-//
-//
-//    for (int i = 0; i < cells_count; i++) {  tmp_integer[i] = current_scores.non_zero[i].row; }
-//    jintArray cells_row_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
-//
-//    for (int i = 0; i < cells_count; i++) {  tmp_integer[i] = current_scores.non_zero[i].col; }
-//    jintArray cells_column_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
-//
-//
-//    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(info, current_scores.non_zero[i].row); }
-//    jintArray first_genome_index_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
-//
-//    for (int i = 0; i < cells_count; i++) { tmp_integer[i] = get_genome_index(info, current_scores.non_zero[i].col); }
-//    jintArray second_genome_index_arr = create_jni_int_array(env, tmp_integer.data(), tmp_integer.size());
-//
-//    jobjectArray max_scores_arr = env->NewObjectArray(rows_count, env->FindClass("[F"),
-//                                                      nullptr);
-//
-//    vector<jfloat> tmp_floating2 = vector<jfloat>(info.sequences_count);
-//    for (int i = 0; i < info.sequences_count; i++) tmp_floating2[i] = current_scores.col_max_scores[i];
-//    jfloatArray col_max_scores_arr = create_jni_float_array(env, tmp_floating2.data(), tmp_floating2.size());
-//
-//    for (unsigned int row = 0; row < rows_count; row++) {
-//        env->SetObjectArrayElement(max_scores_arr, row,
-//                                   create_jni_float_array(env,
-//                                                          current_scores.max_scores.data() +
-//                                                          row * info.genomes_count,
-//                                                          info.genomes_count));
-//    }
-//
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "scores", "[F"), cells_scores_arr);
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "percs", "[F"), cells_percs_arr);
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "tr_percs", "[F"), cells_trpercs_arr);
-//
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "row", "[I"), cells_row_arr);
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "column", "[I"), cells_column_arr);
-//
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "first_seq_genome", "[I"), first_genome_index_arr);
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "second_seq_genome", "[I"), second_genome_index_arr);
-//
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "max_genome_score", "[[F"), max_scores_arr);
-//    env->SetObjectField(out_scores, env->GetFieldID(scores_out_cl, "max_genome_score_col", "[F"), col_max_scores_arr);
-//}
