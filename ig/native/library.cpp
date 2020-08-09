@@ -268,7 +268,7 @@ void Java_infoasys_cli_pangenes_PangeneNative_preprocessSequences(JNIEnv *env, j
     info.genome_sequences.resize(genomes_count);
 
     seq_id_t max_sortval = 1;
-    for (int b = 0; max_sortval >= seq_count; b++) {
+    for (int b = 0; max_sortval < seq_count; b++) {
         counting_sort_ext(kmers, b, [](auto k) { return k.seq; });
         max_sortval *= 256;
     }
